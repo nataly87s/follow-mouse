@@ -29,7 +29,7 @@ const DrawContainer = ({store}) =>
                     {
                         shape.length === 1 ?
                         <Circle {...shape[0]} />:
-                        <Polyline points={getShape(shape)} fillOpacity={0} stroke={{color:'red'}} strokeWidth={3} />
+                        <Polyline points={getShape(shape)} fillOpacity={0} stroke={{color:'red'}} strokeWidth={3} strokeLinecap='round' />
                     }
                 </div>)
         }
