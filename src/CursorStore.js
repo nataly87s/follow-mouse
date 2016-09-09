@@ -9,7 +9,7 @@ export default class CursorStore {
     @observable isMousePressed = false;
     @observable currentLocation = {x:0, y:0};
     subject = new Rx.Subject();
-    mouseSubject = new Rx.Subject();
+    mouseSubject = new Rx.ReplaySubject(1);
     onMouseMove = this.subject.throttle(5);
     disposables = [];
 
