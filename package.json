@@ -48,6 +48,7 @@
   "dependencies": {
     "mobx": "^2.5.1",
     "mobx-react": "^3.5.5",
+    "ramda": "^0.22.1",
     "react": "^0.14.6",
     "react-cursor-position": "^1.0.1",
     "react-dom": "^0.14.6",

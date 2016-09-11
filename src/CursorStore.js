@@ -1,4 +1,4 @@
-import mobx, {observable, action} from 'mobx';
+import mobx, {observable, action, computed} from 'mobx';
 import Rx from 'rx';
 
 export default class CursorStore {
@@ -6,34 +6,42 @@ export default class CursorStore {
         this.mouseSubject.onNext(false);
     }
 
-    @observable isMousePressed = false;
     @observable currentLocation = {x:0, y:0};
+    @observable shapes = [];
     subject = new Rx.Subject();
     mouseSubject = new Rx.ReplaySubject(1);
-    onMouseMove = this.subject.throttle(5);
+    onMouseMove = this.subject.throttle(10);
     disposables = [];
+    autorunDispose = null;
 
-    addCursor() {
-        this.subject.onNext(this.currentLocation);
+    @computed get lastShape() {
+        return this.shapes[this.shapes.length-1];
     }
 
-    moveCursor = (position) => {
-        this.currentLocation = position;
-        if (this.isMousePressed) {
-            this.addCursor();
-        }
-    }
-
-    mouseEvent = (isPressed) => {
+    @action mouseEvent = (isPressed) => {
         this.mouseSubject.onNext(isPressed);
-        this.isMousePressed = isPressed;
-        if (this.isMousePressed) {
-            this.addCursor();
+        if (isPressed) {
+            this.subject.onNext(this.currentLocation);
+            this.autorunDispose = mobx.autorun(() => this.subject.onNext(this.currentLocation))
+        } else {
+            this.disposeAutorun();
         }
     }
 
-    init = () => {}
     @action dispose() {
-        this.disposables.forEach(d => d.dispose());
+        this.disposeAutorun();
+        this.shapes = [];
+        let disposable;
+        while (disposable = this.disposables.shift()) {
+            disposable.dispose();
+        }
     }
+
+    disposeAutorun() {
+        if (this.autorunDispose) {
+            this.autorunDispose();
+            this.autorunDispose = null;
+        }
+    }
+
 }
