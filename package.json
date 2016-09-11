@@ -46,15 +46,16 @@
     "webpack-dev-server": "^1.12.1"
   },
   "dependencies": {
+    "lil-uuid": "^0.1.1",
     "mobx": "^2.5.1",
     "mobx-react": "^3.5.5",
     "ramda": "^0.22.1",
     "react": "^0.14.6",
-    "react-cursor-position": "^1.0.1",
     "react-dom": "^0.14.6",
     "react-router": "^2.7.0",
     "react-shapes": "^0.1.0",
     "recompose": "^0.20.2",
-    "rx": "^4.1.0"
+    "rx": "^4.1.0",
+    "rx-dom": "^7.0.3"
   }
 }
