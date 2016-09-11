@@ -4,10 +4,8 @@ import R from 'ramda';
 import Rx from 'rx';
 
 import ReactCursorPosition from 'react-cursor-position';
-import {Polyline} from 'react-shapes';
-import Circle from './Circle';
+import {Polyline, Circle} from 'react-shapes';
 import CursorStore from './CursorStore';
-import './Cursor.less';
 
 const getShape = (shape) => {
     const s_shape = shape.map(({position}) => `${position.x},${position.y}`).join(' ');
@@ -44,7 +42,8 @@ class DrawContainer extends React.Component {
             .filter(m => m)
             .subscribe(_=> store.shapes.push([]));
 
-        const mouseMove = store.onMouseMove
+        const mouseMove = store.subject
+            .throttle(10)
             .doOnNext(m => {
                 if (this.props.onMouseMove) {
                     this.props.onMouseMove(m);
@@ -67,7 +66,7 @@ class DrawContainer extends React.Component {
                     .flatMap(_=>observable);
             })
             .doOnNext(x => x.opacity = 0)
-            .flatMap(x => Rx.Observable.just(x).delay(500))
+            .flatMap(x => Rx.Observable.just(x).delay(this.props.fadeDelay || 500))
             .doOnNext(x => store.shapes.filter(s => s.length > 0)[0].shift())
             .subscribe();
 
@@ -76,35 +75,39 @@ class DrawContainer extends React.Component {
     }
 
     render() {
-        const {store, drawLines = false, radius = 2} = this.props;
+        const {store, drawLines = false, radius = 2, color = 'red', fadeDelay = 500} = this.props;
         return (
-            <div>
-                <ReactCursorPosition shouldDecorateChildren={false}
-                                     onCursorPositionChanged={position => store.currentLocation = position}>
-                    <div className="container"
-                         onMouseDown={() => store.mouseEvent(true)}
-                         onMouseUp={() => store.mouseEvent(false)}>
-                        {
-                            store.shapes.map((shape, index) =>
-                                shape.length === 0 ?
-                                    null :
-                                    <div key={index} style={{position: 'absolute', pointerEvents: 'none'}}>
-                                        {
-                                            shape.length === 1 || !drawLines ?
-                                                shape.map((point) => <Circle radius={radius}
-                                                                             key={point.index} {...point.position}
-                                                                             opacity={point.opacity}/>)
-                                                :
-                                                <Polyline points={getShape(shape)} fillOpacity={0}
-                                                          stroke={{color: 'red'}} strokeWidth={radius * 2}
-                                                          strokeLinecap='round'/>
-                                        }
-                                    </div>)
-                        }
-                    </div>
-                </ReactCursorPosition>
-                <button onClick={() => store.shapes = []}>clear</button>
-            </div>
+            <ReactCursorPosition shouldDecorateChildren={false}
+                                 onCursorPositionChanged={position => store.currentLocation = position}>
+                <div className="container"
+                     onMouseDown={() => store.mouseEvent(true)}
+                     onMouseUp={() => store.mouseEvent(false)}>
+                    {
+                        store.shapes.map((shape, index) =>
+                            shape.length === 0 ?
+                                null :
+                                <div key={index} style={{position: 'absolute', pointerEvents: 'none'}}>
+                                    {
+                                        shape.length === 1 || !drawLines ?
+                                            shape.map((point) => <div key={point.index} style={{
+                                                top: point.position.y - radius,
+                                                left: point.position.x - radius,
+                                                opacity: point.opacity,
+                                                position: 'absolute',
+                                                pointerEvents: 'none',
+                                                transition: `opacity ${fadeDelay / 1000}s`
+                                            }}>
+                                                <Circle style r={radius} fill={{color}}/>
+                                            </div>)
+                                            :
+                                            <Polyline points={getShape(shape)} fillOpacity={0}
+                                                      stroke={{color}} strokeWidth={radius * 2}
+                                                      strokeLinecap='round'/>
+                                    }
+                                </div>)
+                    }
+                </div>
+            </ReactCursorPosition>
         );
     }
 }
@@ -115,7 +118,9 @@ DrawContainer.propTypes = {
     store: React.PropTypes.instanceOf(CursorStore).isRequired,
     drawLines: React.PropTypes.bool,
     fade: React.PropTypes.bool,
-    radius: React.PropTypes.number
+    radius: React.PropTypes.number,
+    color: React.PropTypes.string,
+    fadeDelay: React.PropTypes.number
 };
 
 export default DrawContainer;

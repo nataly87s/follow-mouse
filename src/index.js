@@ -4,9 +4,13 @@ import { Router, Route, Link, browserHistory, IndexRoute } from 'react-router'
 
 import DrawCanvas from './DrawCanvas';
 import CursorStore from './CursorStore';
+import './Cursor.less';
 
 const store = new CursorStore();
-const Drawing = props => <DrawCanvas drawLines={true} {...{store}} />;
+const Drawing = props => <div>
+    <DrawCanvas drawLines={true} {...{store}} />
+    <button onClick={() => store.shapes = []}>clear</button>
+</div>;
 const Controlling = props => <DrawCanvas radius={8} fade={true} {...{store}}/> ;
 const NoMatch = props => <div>:(</div>;
 
@@ -18,8 +22,7 @@ const App = props =>
         </ul>
         {props.children}
     </div>;
-  
-  
+
 ReactDOM.render((
     <Router history={browserHistory}>
         <Route path="/" component={App}>
