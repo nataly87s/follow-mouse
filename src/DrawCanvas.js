@@ -8,7 +8,7 @@ import {Polyline, Circle} from 'react-shapes';
 import CursorStore from './CursorStore';
 
 @observer
-class DrawContainer extends React.Component {
+class DrawCanvas extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
@@ -33,20 +33,21 @@ class DrawContainer extends React.Component {
 
     removePoint(point) {
         let shapes = this.props.store.shapes;
-        for (let i = shapes.length -1; i >= 0; i--) {
+        for (let i = shapes.length - 1; i >= 0; i--) {
             const index = shapes[i].indexOf(point);
             if (index > -1) {
-                shapes[i].splice(i,1);
+                shapes[i].splice(i, 1);
             }
             if (shapes[i].length == 0) {
-                shapes.splice(i,1);
+                shapes.splice(i, 1);
             }
         }
     }
 
     fadePoint(point) {
+        if (this.props.drawLines) return;
         point.opacity = 0;
-        Rx.Observable.timer(this.props.fadeDelay || 500).subscribe(_ =>  this.removePoint(point))
+        Rx.Observable.timer(this.props.fadeDelay || 500).subscribe(_ => this.removePoint(point))
     }
 
     init(store) {
@@ -55,56 +56,65 @@ class DrawContainer extends React.Component {
         const mouseUp = DOM.mouseup(document).share();
         const mouseDown = DOM.mousedown(container).share();
 
-        const onMousePressed = Rx.Observable.merge(
+        const getPosition = e => {
+            return {x: e.offsetX, y: e.offsetY}
+        };
+
+        const onMouseButtonStateChanged = Rx.Observable.merge(
             mouseUp.map(_=>false),
-            mouseDown.flatMap(_=> Rx.Observable.merge(
-                Rx.Observable.just(true),
-                DOM.mouseenter(container).map(_=>true),
+            mouseDown.flatMap(e=> Rx.Observable.merge(
+                Rx.Observable.just(e),
+                DOM.mouseenter(container),
                 DOM.mouseleave(container).map(_=>false)
                 ).takeUntil(mouseUp)
             ))
             .distinctUntilChanged()
-            .subscribe(isPressed => {
-                if (isPressed) {
-                    store.shapes.push([])
-                }
+            .share();
+
+        const onMousePressed = onMouseButtonStateChanged.filter(t => t);
+        const onMouseReleased = onMouseButtonStateChanged.filter(t => !t);
+
+        const onMouseMove = onMousePressed
+            .doOnNext(e => {
+                store.shapes.push([]);
                 if (this.props.onMouseButton) {
-                    this.props.onMouseButton(isPressed);
+                    this.props.onMouseButton(true, getPosition(e));
                 }
-            });
-
-        store.disposables.push(onMousePressed);
-
-
-        const onMouseMove = mouseDown.flatMap(_=>
-            DOM.mousemove(container)
-                .takeUntil(mouseUp)
-                .throttle(10)
-                .map(e => {
-                    return {x: e.offsetX, y: e.offsetY}
-                })
-                .doOnNext(point => {
-                    if (this.props.onMouseMove) {
-                        this.props.onMouseMove(point);
-                    }
-                })
-                .map(position => {
-                    const index = store.lastShape.length === 0 ? 0 : store.lastShape[store.lastShape.length - 1].index + 1;
-                    return {position, index, opacity: 1, show: true};
-                })
-                .doOnNext(point => store.lastShape.push(point))
-                .flatMap(x => this.props.fade ? Rx.Observable.just(x).delay(1) : Rx.Observable.empty())
-                .pairwise()
-                .doOnNext(point => this.fadePoint(point[0]))
-                .last({defaultValue: [null,null]})
-        ).subscribe(point => this.fadePoint( point[1] || store.currentPoint));
+            })
+            .flatMap(firstPoint=>
+                DOM.mousemove(container)
+                    .startWith(firstPoint)
+                    .takeUntil(onMouseReleased)
+                    .throttle(this.props.throttle || 10)
+                    .map(e => {
+                        const index = store.lastShape.length === 0 ? 0 : store.lastShape[store.lastShape.length - 1].index + 1;
+                        return {position: getPosition(e), index, opacity: 1};
+                    })
+                    .doOnNext(point => {
+                        store.lastShape.push(point);
+                        if (point.index > 0 && this.props.onMouseMove) {
+                            this.props.onMouseMove(point.position);
+                        }
+                    })
+                    .concat('')
+                    .pairwise()
+                    .map(x=>x[0])
+                    .doOnNext(this.fadePoint)
+                    .last()
+                    .doOnNext(point => {
+                        if (this.props.onMouseButton) {
+                            this.props.onMouseButton(false, point.position);
+                        }
+                    })
+            )
+            .subscribe();
         store.disposables.push(onMouseMove);
     }
 
     render() {
-        const {store, drawLines = false, radius = 2, color = 'red', fadeDelay = 500} = this.props;
+        const {store, drawLines = false, radius = 2, color = 'red', fadeDelay = 500, style} = this.props;
         return (
-            <div className="container" id={this.state.uuid}>
+            <div className="draw-canvas-container" id={this.state.uuid} style={style}>
                 {
                     store.shapes.map((shape, index) =>
                         shape.length === 0 ?
@@ -124,26 +134,27 @@ class DrawContainer extends React.Component {
                                             <Circle r={radius} fill={{color}}/>
                                         </div>)
                                         :
-                                        <Polyline points={shape.map(({position}) => `${position.x},${position.y}`).join(' ')}
-                                                  fillOpacity={0} stroke={{color}} strokeWidth={radius * 2} strokeLinecap='round'/>
+                                        <Polyline
+                                            points={shape.map(({position}) => `${position.x},${position.y}`).join(' ')}
+                                            fillOpacity={0} stroke={{color}} strokeWidth={radius * 2}
+                                            strokeLinecap='round'/>
                                 }
                             </div>)
                 }
             </div>
-
         );
     }
 }
 
-DrawContainer.propTypes = {
+DrawCanvas.propTypes = {
     onMouseButton: React.PropTypes.func,
     onMouseMove: React.PropTypes.func,
     store: React.PropTypes.instanceOf(CursorStore).isRequired,
     drawLines: React.PropTypes.bool,
-    fade: React.PropTypes.bool,
     radius: React.PropTypes.number,
     color: React.PropTypes.string,
-    fadeDelay: React.PropTypes.number
+    fadeDelay: React.PropTypes.number,
+    throttle: React.PropTypes.number
 };
 
-export default DrawContainer;
+export default DrawCanvas;

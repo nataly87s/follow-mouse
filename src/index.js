@@ -11,7 +11,7 @@ const Drawing = props => <div>
     <DrawCanvas drawLines={true} {...{store}} />
     <button onClick={() => store.shapes = []}>clear</button>
 </div>;
-const Controlling = props => <DrawCanvas radius={8} fade={true} {...{store}}/> ;
+const Controlling = props => <DrawCanvas radius={8} drawLines={false} {...{store}}/> ;
 const NoMatch = props => <div>:(</div>;
 
 const App = props =>
