@@ -1,4 +1,4 @@
-import mobx, {observable, action, computed} from 'mobx';
+import {observable, action, computed} from 'mobx';
 
 export default class CursorStore {
     @observable shapes = [];
@@ -7,6 +7,15 @@ export default class CursorStore {
 
     @computed get lastShape() {
         return this.shapes[this.shapes.length-1];
+    }
+
+    @computed get currentPoint() {
+        for (let i = this.shapes.length - 1; i >= 0; i--) {
+            var shape = this.shapes[i];
+            if (shape.length !== 0) {
+                return shape[shape.length-1];
+            }
+        }
     }
 
     @action dispose() {

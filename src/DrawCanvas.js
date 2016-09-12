@@ -1,6 +1,5 @@
 import React from 'react';
 import {observer} from 'mobx-react';
-import R from 'ramda';
 import Rx from 'rx';
 import {DOM} from 'rx-dom';
 import {uuid} from 'lil-uuid/uuid';
@@ -45,11 +44,16 @@ class DrawContainer extends React.Component {
         }
     }
 
+    fadePoint(point) {
+        point.opacity = 0;
+        Rx.Observable.timer(this.props.fadeDelay || 500).subscribe(_ =>  this.removePoint(point))
+    }
+
     init(store) {
         const container = document.getElementById(this.state.uuid);
 
         const mouseUp = DOM.mouseup(document).share();
-        var mouseDown = DOM.mousedown(container).share();
+        const mouseDown = DOM.mousedown(container).share();
 
         const onMousePressed = Rx.Observable.merge(
             mouseUp.map(_=>false),
@@ -71,43 +75,30 @@ class DrawContainer extends React.Component {
 
         store.disposables.push(onMousePressed);
 
-        const onMouseMove = mouseDown
-            .flatMap(x => DOM.mousemove(container).takeUntil(mouseUp))
-            .map(e => {
-                return {x: e.offsetX, y: e.offsetY}
-            })
-            .doOnNext(location => store.currentLocation = location)
-            .throttle(10)
-            .share();
 
-        const mouseMove = onMouseMove
-            .doOnNext(m => {
-                if (this.props.onMouseMove) {
-                    this.props.onMouseMove(m);
-                }
-            })
-            .map(position => {
-                const index = store.lastShape.length === 0 ? 0 : store.lastShape[store.lastShape.length - 1].index + 1;
-                return {position, index, opacity: 1, show: true};
-            })
-            .doOnNext(item => store.lastShape.push(item))
-            .flatMap(x => this.props.fade ? Rx.Observable.just(x).delay(1) : Rx.Observable.empty())
-            .flatMap(x => {
-                const observable = Rx.Observable.just(x);
-                x.show = false;
-                if (R.flatten(store.shapes).filter(t => t.show).length > 0) return observable;
-                return onMouseMove
-                    .take(1)
-                    .takeUntil(mouseUp)
-                    .last({defaultValue: 1})
-                    .flatMap(_=>observable);
-            })
-            .doOnNext(x => x.opacity = 0)
-            .flatMap(x => Rx.Observable.just(x).delay(this.props.fadeDelay || 500))
-            .doOnNext(x =>  this.removePoint(x))
-            .subscribe();
-
-        store.disposables.push(mouseMove);
+        const onMouseMove = mouseDown.flatMap(_=>
+            DOM.mousemove(container)
+                .takeUntil(mouseUp)
+                .throttle(10)
+                .map(e => {
+                    return {x: e.offsetX, y: e.offsetY}
+                })
+                .doOnNext(point => {
+                    if (this.props.onMouseMove) {
+                        this.props.onMouseMove(point);
+                    }
+                })
+                .map(position => {
+                    const index = store.lastShape.length === 0 ? 0 : store.lastShape[store.lastShape.length - 1].index + 1;
+                    return {position, index, opacity: 1, show: true};
+                })
+                .doOnNext(point => store.lastShape.push(point))
+                .flatMap(x => this.props.fade ? Rx.Observable.just(x).delay(1) : Rx.Observable.empty())
+                .pairwise()
+                .doOnNext(point => this.fadePoint(point[0]))
+                .last({defaultValue: [null,null]})
+        ).subscribe(point => this.fadePoint( point[1] || store.currentPoint));
+        store.disposables.push(onMouseMove);
     }
 
     render() {
